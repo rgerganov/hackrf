@@ -300,6 +300,9 @@ static volatile bool do_exit = false;
 FILE* fd = NULL;
 const char *SHARED_FD_PATH = "/tmp/foo.cs8";
 FILE* shared_fd = NULL;
+const uint32_t CB_SKIP_COUNT = 5;
+volatile uint32_t callback_count = 0;
+
 volatile uint32_t byte_count = 0;
 
 bool signalsource = false;
@@ -350,6 +353,7 @@ int rx_callback(hackrf_transfer* transfer) {
 	ssize_t bytes_written;
 	int i;
 
+    callback_count += 1;
 	if( fd != NULL ) 
 	{
 		byte_count += transfer->valid_length;
@@ -367,8 +371,10 @@ int rx_callback(hackrf_transfer* transfer) {
 			}
 		}
 		bytes_written = fwrite(transfer->buffer, 1, bytes_to_write, fd);
-        fseek(shared_fd, 0, SEEK_SET);
-		fwrite(transfer->buffer, 1, bytes_to_write, shared_fd);
+        if (callback_count % CB_SKIP_COUNT == 0) {
+            fseek(shared_fd, 0, SEEK_SET);
+            fwrite(transfer->buffer, 1, bytes_to_write, shared_fd);
+        }
 		if ((bytes_written != bytes_to_write)
 				|| (limit_num_samples && (bytes_to_xfer == 0))) {
 			return -1;
@@ -385,6 +391,7 @@ int tx_callback(hackrf_transfer* transfer) {
 	ssize_t bytes_read;
 	int i;
 
+    callback_count += 1;
 	if( fd != NULL )
 	{
 		byte_count += transfer->valid_length;
@@ -400,6 +407,10 @@ int tx_callback(hackrf_transfer* transfer) {
 			bytes_to_xfer -= bytes_to_read;
 		}
 		bytes_read = fread(transfer->buffer, 1, bytes_to_read, fd);
+        if (callback_count % CB_SKIP_COUNT == 0) {
+            fseek(shared_fd, 0, SEEK_SET);
+            fwrite(transfer->buffer, 1, bytes_read, shared_fd);
+        }
 		if ((bytes_read != bytes_to_read)
 				|| (limit_num_samples && (bytes_to_xfer == 0))) {
                        if (repeat) {
