@@ -298,6 +298,8 @@ char* u64toa(uint64_t val, t_u64toa* str)
 static volatile bool do_exit = false;
 
 FILE* fd = NULL;
+const char *SHARED_FD_PATH = "/tmp/foo.cs8";
+FILE* shared_fd = NULL;
 volatile uint32_t byte_count = 0;
 
 bool signalsource = false;
@@ -365,6 +367,8 @@ int rx_callback(hackrf_transfer* transfer) {
 			}
 		}
 		bytes_written = fwrite(transfer->buffer, 1, bytes_to_write, fd);
+        fseek(shared_fd, 0, SEEK_SET);
+		fwrite(transfer->buffer, 1, bytes_to_write, shared_fd);
 		if ((bytes_written != bytes_to_write)
 				|| (limit_num_samples && (bytes_to_xfer == 0))) {
 			return -1;
@@ -884,6 +888,12 @@ int main(int argc, char** argv) {
 		}
 	}
 
+    shared_fd = fopen(SHARED_FD_PATH, "wb");
+    if (shared_fd == NULL) {
+        fprintf(stderr, "Failed to open file: %s\n", SHARED_FD_PATH);
+        return EXIT_FAILURE;
+    }
+
 	/* Write Wav header */
 	if( receive_wav ) 
 	{
@@ -1077,6 +1087,9 @@ int main(int argc, char** argv) {
 		fd = NULL;
 		fprintf(stderr, "fclose(fd) done\n");
 	}
+    if (shared_fd != NULL) {
+        fclose(shared_fd);
+    }
 	fprintf(stderr, "exit\n");
 	return exit_code;
 }
